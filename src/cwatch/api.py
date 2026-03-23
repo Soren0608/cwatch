@@ -168,7 +168,10 @@ def fetch(token: str) -> UsageData:
                 f"Token rejected (HTTP {e.code}). Try running: claude login"
             ) from e
         if e.code == 429:
-            retry_after = int(e.headers.get("Retry-After", 60))
+            try:
+                retry_after = max(60, int(e.headers.get("Retry-After", 0) or 0))
+            except (ValueError, TypeError):
+                retry_after = 60
             raise RateLimitError(retry_after) from e
         raise APIError(f"HTTP {e.code}") from e
     except urllib.error.URLError as e:
