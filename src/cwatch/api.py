@@ -117,6 +117,13 @@ class APIError(Exception):
     """Non-auth API error."""
 
 
+class RateLimitError(APIError):
+    """HTTP 429 — too many requests."""
+    def __init__(self, retry_after: int = 60):
+        self.retry_after = retry_after
+        super().__init__(f"Rate limited — retry in {retry_after}s")
+
+
 def _parse_window(obj: dict | None) -> Optional[Window]:
     if not obj:
         return None
@@ -160,6 +167,9 @@ def fetch(token: str) -> UsageData:
             raise AuthError(
                 f"Token rejected (HTTP {e.code}). Try running: claude login"
             ) from e
+        if e.code == 429:
+            retry_after = int(e.headers.get("Retry-After", 60))
+            raise RateLimitError(retry_after) from e
         raise APIError(f"HTTP {e.code}") from e
     except urllib.error.URLError as e:
         raise APIError(f"Network error: {e.reason}") from e

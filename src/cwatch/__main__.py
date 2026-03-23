@@ -33,7 +33,7 @@ import time
 from datetime import datetime
 
 from . import __version__
-from .api import APIError, AuthError, fetch
+from .api import APIError, AuthError, RateLimitError, fetch
 from .credentials import get_token
 from .render import (
     clear_screen,
@@ -89,12 +89,16 @@ def _interactive_loop(token: str, interval: int, title: bool) -> None:
                 try:
                     data       = fetch(token)
                     last_error = None
+                    countdown  = interval
                 except AuthError as e:
                     _restore()
                     _die(str(e))
+                except RateLimitError as e:
+                    last_error = f"Rate limited — next try in {e.retry_after}s"
+                    countdown  = e.retry_after
                 except APIError as e:
                     last_error = str(e)
-                countdown    = interval
+                    countdown  = interval
                 needs_redraw = True
 
             # ── Draw ───────────────────────────────────────────────────────
