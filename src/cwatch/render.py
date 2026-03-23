@@ -110,10 +110,8 @@ def _window_block(
             eta = w.eta_str(total_seconds)
             if eta:
                 eta_part = f"  {_c(YELLOW, f'limit in {eta} at this rate')}"
-        time_line = (
-            f"  [{b_time}]  {_c(DIM, f'{elapsed:3d}%')}"
-            f"  {_c(DIM, 'time elapsed')}{eta_part}"
-        )
+        elapsed_str = _c(DIM, f"{elapsed:3d}%  time elapsed")
+        time_line = f"  [{b_time}]  {elapsed_str}{eta_part}"
 
     lines = [f"  {_c(BOLD, label)}", usage_line]
     if time_line:
@@ -171,8 +169,8 @@ def dashboard(data: UsageData, updated_at: Optional[datetime] = None) -> str:
 
 def status_line(countdown: int, interval: int) -> str:
     """Updatable one-line status bar shown below the dashboard."""
-    keys  = "[r] refresh  [+/-] interval  [t] title  [q] quit"
-    timer = f"Next refresh in {countdown}s  (every {interval}s)"
+    keys  = "[r]refresh  [+/-]interval  [t]title  [q]quit"
+    timer = f"Next refresh in {countdown}s"
     return f"  {_c(DIM, timer + '   ·   ' + keys)}"
 
 

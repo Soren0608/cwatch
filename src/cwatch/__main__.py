@@ -76,11 +76,11 @@ def _interactive_loop(token: str, interval: int, title: bool) -> None:
             import termios
             termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_settings)
 
-    countdown  = 0
-    data       = None
+    countdown   = 0
+    data        = None
     last_error: str | None = None
-    first_draw = True
-    title_on   = title
+    full_clear  = True   # True → \033[2J\033[H,  False → \033[H only
+    title_on    = title
 
     try:
         while True:
@@ -99,11 +99,12 @@ def _interactive_loop(token: str, interval: int, title: bool) -> None:
                 except APIError as e:
                     last_error = str(e)
                     countdown  = interval
+                full_clear = True   # data changed → full clear to avoid ghost lines
 
             # ── Draw (every second) ────────────────────────────────────────
-            if first_draw:
+            if full_clear:
                 clear_screen()
-                first_draw = False
+                full_clear = False
             else:
                 cursor_home()
 
@@ -130,7 +131,7 @@ def _interactive_loop(token: str, interval: int, title: bool) -> None:
                         break
                     elif ch in ("r", "R"):
                         countdown  = 0
-                        first_draw = True
+                        full_clear = True
                         continue
                     elif ch == "+":
                         interval = min(300, interval + 5)
