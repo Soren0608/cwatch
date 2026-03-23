@@ -84,17 +84,20 @@ def _window_block(
     if w is None:
         return [f"  {_c(DIM, label + ':'):22s}  {_c(DIM, 'no data')}"]
 
-    pct      = w.pct
-    b_usage  = bar(pct, bar_width)
-    c        = _color_for(pct)
-    reset_at = ""
+    pct     = w.pct
+    b_usage = bar(pct, bar_width)
+    c       = _color_for(pct)
+
     if w.resets_at:
-        reset_at = w.resets_at.astimezone().strftime("%H:%M:%S")
+        reset_at   = w.resets_at.astimezone().strftime("%H:%M:%S")
+        reset_info = f"reset in {w.time_until_reset}  ({reset_at})"
+    else:
+        reset_info = "reset time pending"
 
     # ── usage line ────────────────────────────────────────────────────────────
     usage_line = (
         f"  [{b_usage}]  {_c(c, f'{pct:3d}%')}  "
-        f"{_c(DIM, f'reset in {w.time_until_reset}  ({reset_at})')}"
+        f"{_c(DIM, reset_info)}"
     )
 
     # ── time bar line ─────────────────────────────────────────────────────────
