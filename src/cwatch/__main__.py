@@ -111,8 +111,12 @@ def _interactive_loop(token: str, interval: int, title: bool) -> None:
                 sys.stdout.write(dashboard(data, datetime.now()))
                 if title_on:
                     set_terminal_title(data)
+            else:
+                sys.stdout.write(f"\n  {_BOLD}CLAUDE CODE  ·  USAGE MONITOR{_RST}\n\n")
+
             if last_error:
-                sys.stdout.write(f"\n  {_YEL}⚠ {last_error}{_RST}\n")
+                sys.stdout.write(f"  {_YEL}⚠  {last_error}{_RST}\n\n")
+
             sys.stdout.write(status_line(countdown, interval) + "\n")
             sys.stdout.write("\033[J")   # erase from cursor to end of screen
             sys.stdout.flush()
