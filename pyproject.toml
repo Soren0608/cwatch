@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cwatch"
-version = "0.1.0"
+name = "cwatch-monitor"
+version = "0.2.1"
 description = "Zero-dependency real-time Claude Code usage monitor"
 readme = "README.md"
 license = { text = "MIT" }
@@ -31,9 +31,9 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/soren0608/cwatch"
-Repository = "https://github.com/soren0608/cwatch"
-"Bug Tracker" = "https://github.com/soren0608/cwatch/issues"
+Homepage = "https://github.com/Soren0608/cwatch"
+Repository = "https://github.com/Soren0608/cwatch"
+"Bug Tracker" = "https://github.com/Soren0608/cwatch/issues"
 
 [project.scripts]
 cwatch = "cwatch.__main__:main"
