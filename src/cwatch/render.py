@@ -176,12 +176,6 @@ def status_line(countdown: int, interval: int) -> str:
     return f"  {_c(DIM, timer + '   ·   ' + keys)}"
 
 
-def rewrite_status(line: str) -> None:
-    """Overwrite the previously printed status line in-place."""
-    sys.stdout.write(f"\033[1A\r\033[K{line}\n")
-    sys.stdout.flush()
-
-
 def set_terminal_title(data: UsageData) -> None:
     """Update the terminal window/tab title with current usage."""
     parts = []
@@ -195,4 +189,18 @@ def set_terminal_title(data: UsageData) -> None:
 
 
 def clear_screen() -> None:
-    os.system("cls" if platform.system() == "Windows" else "clear")
+    """Full clear — only on first draw or forced refresh."""
+    if platform.system() == "Windows":
+        os.system("cls")
+    else:
+        sys.stdout.write("\033[2J\033[H")
+        sys.stdout.flush()
+
+
+def cursor_home() -> None:
+    """Move cursor to top-left without erasing — for tick redraws (no flicker)."""
+    if platform.system() == "Windows":
+        os.system("cls")
+    else:
+        sys.stdout.write("\033[H")
+        sys.stdout.flush()

@@ -37,9 +37,9 @@ from .api import APIError, AuthError, RateLimitError, fetch
 from .credentials import get_token
 from .render import (
     clear_screen,
+    cursor_home,
     dashboard,
     oneliner,
-    rewrite_status,
     set_terminal_title,
     status_line,
 )
@@ -76,11 +76,11 @@ def _interactive_loop(token: str, interval: int, title: bool) -> None:
             import termios
             termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_settings)
 
-    countdown    = 0
-    data         = None
-    last_error:  str | None = None
-    needs_redraw = True
-    title_on     = title
+    countdown  = 0
+    data       = None
+    last_error: str | None = None
+    first_draw = True
+    title_on   = title
 
     try:
         while True:
@@ -99,22 +99,23 @@ def _interactive_loop(token: str, interval: int, title: bool) -> None:
                 except APIError as e:
                     last_error = str(e)
                     countdown  = interval
-                needs_redraw = True
 
-            # ── Draw ───────────────────────────────────────────────────────
-            if needs_redraw:
+            # ── Draw (every second) ────────────────────────────────────────
+            if first_draw:
                 clear_screen()
-                if data:
-                    sys.stdout.write(dashboard(data, datetime.now()))
-                    if title_on:
-                        set_terminal_title(data)
-                if last_error:
-                    sys.stdout.write(f"\n  {_YEL}⚠ {last_error}{_RST}\n")
-                sys.stdout.write(status_line(countdown, interval) + "\n")
-                sys.stdout.flush()
-                needs_redraw = False
+                first_draw = False
             else:
-                rewrite_status(status_line(countdown, interval))
+                cursor_home()
+
+            if data:
+                sys.stdout.write(dashboard(data, datetime.now()))
+                if title_on:
+                    set_terminal_title(data)
+            if last_error:
+                sys.stdout.write(f"\n  {_YEL}⚠ {last_error}{_RST}\n")
+            sys.stdout.write(status_line(countdown, interval) + "\n")
+            sys.stdout.write("\033[J")   # erase from cursor to end of screen
+            sys.stdout.flush()
 
             # ── Wait 1 s, watch for keypresses ─────────────────────────────
             if is_tty:
@@ -124,8 +125,8 @@ def _interactive_loop(token: str, interval: int, title: bool) -> None:
                     if ch in ("q", "Q", "\x03", "\x1b"):
                         break
                     elif ch in ("r", "R"):
-                        countdown    = 0
-                        needs_redraw = True
+                        countdown  = 0
+                        first_draw = True
                         continue
                     elif ch == "+":
                         interval = min(300, interval + 5)
