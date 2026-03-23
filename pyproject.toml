@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cwatch"
+version = "0.1.0"
+description = "Zero-dependency real-time Claude Code usage monitor"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = ["claude", "anthropic", "claude-code", "usage", "monitor", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Terminals",
+    "Topic :: Utilities",
+]
+
+# Zero runtime dependencies — 100% stdlib
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/soren0608/cwatch"
+Repository = "https://github.com/soren0608/cwatch"
+"Bug Tracker" = "https://github.com/soren0608/cwatch/issues"
+
+[project.scripts]
+cwatch = "cwatch.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cwatch"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/",
+    "tests/",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
