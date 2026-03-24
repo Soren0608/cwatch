@@ -13,7 +13,7 @@ import sys
 from datetime import datetime
 from typing import Optional
 
-from .api import FIVE_HOUR_SECS, SEVEN_DAY_SECS, UsageData, Window
+from .api import FIVE_HOUR_SECS, PLAN_LIMITS, SEVEN_DAY_SECS, UsageData, Window, _COST_PER_TOKEN
 
 # ─── ANSI codes ───────────────────────────────────────────────────────────────
 
@@ -136,7 +136,66 @@ def oneliner(data: UsageData) -> str:
     return "  ".join(parts) if parts else "Claude: no data"
 
 
-def dashboard(data: UsageData, updated_at: Optional[datetime] = None) -> str:
+_TIPS = [
+    "Use /clear between unrelated tasks to reset context",
+    "Reference specific files instead of whole directories",
+    "Keep questions focused — one task at a time",
+    "Use CLAUDE.md to avoid repeating instructions every session",
+    "Paste only relevant code snippets, not entire files",
+]
+
+_LINES_PER_TOKEN  = 0.10    # 1 token ≈ 10 chars ≈ 0.1 lines of code
+
+
+def _token_insights(data: UsageData, plan_key: str) -> list[str]:
+    """Return lines for the token insights section."""
+    w = data.five_hour
+    if w is None or plan_key not in PLAN_LIMITS:
+        return []
+
+    limit      = PLAN_LIMITS[plan_key]
+    used       = round(w.utilization / 100 * limit)
+    lines_est  = round(used * _LINES_PER_TOKEN)
+    cost_est   = used * _COST_PER_TOKEN
+    tip_index  = used % len(_TIPS)
+
+    sep   = _c(CYAN, "─" * 60)
+    plan_label = {"pro": "Pro · 88k/5h", "max5": "Max 5x · 440k/5h", "max20": "Max 20x · 1.76M/5h"}[plan_key]
+
+    used_str  = f"{used:,}"
+    limit_str = f"{limit // 1000}k" if limit < 1_000_000 else f"{limit / 1_000_000:.1f}M"
+    cost_str  = f"${cost_est:.2f}"
+    lines_str = f"~{lines_est:,} lines of code"
+
+    return [
+        "",
+        sep,
+        f"  {_c(BOLD + CYAN, 'TOKEN INSIGHTS'):<40s}  {_c(DIM, plan_label)}",
+        sep,
+        "",
+        f"  {_c(BOLD, 'Used:')}   {_c(GREEN, used_str)} / {limit_str} tokens"
+        f"   {_c(DIM, '≈ ' + lines_str + '   ≈ ' + cost_str)}",
+        "",
+        f"  {_c(BOLD, 'Tip:')}    {_c(DIM, _TIPS[tip_index])}",
+        "",
+    ]
+
+
+def _plan_key(data: UsageData, override: str = "") -> str:
+    """Resolve plan key for token limit lookup."""
+    if override:
+        return override
+    p = data.plan.lower()
+    if "pro" in p:
+        return "pro"
+    if "20" in p:
+        return "max20"
+    if "max" in p:
+        return "max5"   # default for Max without tier info
+    return ""
+
+
+def dashboard(data: UsageData, updated_at: Optional[datetime] = None, plan_override: str = "") -> str:
     """Full-screen dashboard string."""
     sep   = _c(CYAN, "─" * 60)
     plan  = _c(BOLD, data.plan)
@@ -158,7 +217,13 @@ def dashboard(data: UsageData, updated_at: Optional[datetime] = None) -> str:
         lines += [""]
         lines += _window_block("Opus (weekly) ", data.seven_day_opus, SEVEN_DAY_SECS)
 
-    lines += ["", sep]
+    pk = _plan_key(data, plan_override)
+    if pk:
+        lines += _token_insights(data, pk)
+    else:
+        lines += [""]
+
+    lines += [sep]
 
     ts = (updated_at or datetime.now()).strftime("%H:%M:%S")
     lines.append(f"  {_c(DIM, f'Updated {ts}')}")

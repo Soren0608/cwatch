@@ -62,7 +62,7 @@ def _warn(msg: str) -> None:
 
 # ─── Interactive live loop ────────────────────────────────────────────────────
 
-def _interactive_loop(token: str, interval: int, title: bool) -> None:
+def _interactive_loop(token: str, interval: int, title: bool, plan_override: str = "") -> None:
     is_tty       = sys.stdin.isatty()
     old_settings = None
 
@@ -109,7 +109,7 @@ def _interactive_loop(token: str, interval: int, title: bool) -> None:
                 cursor_home()
 
             if data:
-                sys.stdout.write(dashboard(data, datetime.now()))
+                sys.stdout.write(dashboard(data, datetime.now(), plan_override=plan_override))
                 if title_on:
                     set_terminal_title(data)
             else:
@@ -200,6 +200,10 @@ keys (live mode):
         help="update terminal title bar with usage %%",
     )
     parser.add_argument(
+        "--plan", choices=["pro", "max5", "max20"], default="", metavar="PLAN",
+        help="override plan for token insights: pro, max5, max20 (auto-detected by default)",
+    )
+    parser.add_argument(
         "--token", metavar="TOKEN",
         help="Claude Code OAuth access token (overrides auto-detection)",
     )
@@ -241,7 +245,7 @@ keys (live mode):
         return
 
     # ── Interactive live dashboard ─────────────────────────────────────────
-    _interactive_loop(token, max(5, args.interval), title=args.title)
+    _interactive_loop(token, max(5, args.interval), title=args.title, plan_override=args.plan)
 
 
 if __name__ == "__main__":

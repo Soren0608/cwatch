@@ -22,6 +22,16 @@ _TIMEOUT = 10
 FIVE_HOUR_SECS  = 5 * 3600        # 18 000
 SEVEN_DAY_SECS  = 7 * 24 * 3600   # 604 800
 
+# Approximate token limits per plan (5-hour window)
+PLAN_LIMITS: dict[str, int] = {
+    "pro":   88_000,
+    "max5":  440_000,
+    "max20": 1_760_000,
+}
+
+# Rough cost per token (blended input/output, Claude Sonnet)
+_COST_PER_TOKEN = 9 / 1_000_000   # $9 per million tokens blended
+
 
 @dataclass
 class Window:
