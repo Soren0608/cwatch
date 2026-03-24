@@ -184,8 +184,8 @@ keys (live mode):
     parser.add_argument("--version", action="version", version=f"cwatch {__version__}")
     parser.add_argument(
         "--interval", "-i",
-        type=int, default=60, metavar="SECS",
-        help="seconds between refreshes (default: 60, min: 5)",
+        type=int, default=120, metavar="SECS",
+        help="seconds between refreshes (default: 120, min: 5)",
     )
     parser.add_argument(
         "--once", action="store_true",
