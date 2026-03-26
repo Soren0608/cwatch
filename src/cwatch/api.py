@@ -11,7 +11,7 @@ import json
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 _USAGE_URL  = "https://api.anthropic.com/api/oauth/usage"
@@ -95,6 +95,22 @@ class Window:
         if h:
             return f"~{h}h {m}m"
         return f"~{m}m"
+
+    def predicted_end_clock(self, total_seconds: int) -> Optional[str]:
+        """
+        Clock time when utilisation reaches 100% at current burn rate.
+        Returns e.g. '21:30' or None if not enough data.
+        """
+        secs = self.seconds_until_reset
+        if secs is None or self.utilization >= 100:
+            return None
+        elapsed = max(0, total_seconds - secs)
+        if elapsed < 300 or self.utilization <= 0:
+            return None
+        rate_per_sec = self.utilization / elapsed
+        secs_left    = (100 - self.utilization) / rate_per_sec
+        end_time     = datetime.now() + timedelta(seconds=secs_left)
+        return end_time.strftime("%H:%M")
 
 
 @dataclass

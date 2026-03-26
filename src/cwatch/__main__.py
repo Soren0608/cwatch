@@ -35,12 +35,14 @@ from datetime import datetime
 from . import __version__
 from .api import APIError, AuthError, RateLimitError, fetch
 from .credentials import get_token
+from .history import save as history_save
 from .render import (
     clear_screen,
     cursor_home,
     dashboard,
     oneliner,
     set_terminal_title,
+    stats_str,
     status_line,
 )
 
@@ -62,7 +64,12 @@ def _warn(msg: str) -> None:
 
 # ─── Interactive live loop ────────────────────────────────────────────────────
 
-def _interactive_loop(token: str, interval: int, title: bool, plan_override: str = "") -> None:
+def _ring_bell() -> None:
+    sys.stdout.write("\a")
+    sys.stdout.flush()
+
+
+def _interactive_loop(token: str, interval: int, title: bool, bell: bool, plan_override: str = "") -> None:
     is_tty       = sys.stdin.isatty()
     old_settings = None
 
@@ -76,11 +83,13 @@ def _interactive_loop(token: str, interval: int, title: bool, plan_override: str
             import termios
             termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_settings)
 
-    countdown   = 0
-    data        = None
-    last_error: str | None = None
-    full_clear  = True   # True → \033[2J\033[H,  False → \033[H only
-    title_on    = title
+    countdown    = 0
+    data         = None
+    last_error:  str | None = None
+    full_clear   = True
+    title_on     = title
+    bell_on      = bell
+    prev_pct     = -1   # for threshold crossing detection
 
     try:
         while True:
@@ -90,6 +99,14 @@ def _interactive_loop(token: str, interval: int, title: bool, plan_override: str
                     data       = fetch(token)
                     last_error = None
                     countdown  = interval
+                    # ── history + bell ────────────────────────────────────
+                    if data.five_hour and data.seven_day:
+                        history_save(data.five_hour.pct, data.seven_day.pct, data.plan)
+                    if bell_on and data.five_hour:
+                        new_pct = data.five_hour.pct
+                        if (prev_pct < 90 <= new_pct) or (prev_pct < 80 <= new_pct < 90):
+                            _ring_bell()
+                        prev_pct = new_pct
                 except AuthError as e:
                     _restore()
                     _die(str(e))
@@ -99,7 +116,7 @@ def _interactive_loop(token: str, interval: int, title: bool, plan_override: str
                 except APIError as e:
                     last_error = str(e)
                     countdown  = interval
-                full_clear = True   # data changed → full clear to avoid ghost lines
+                full_clear = True
 
             # ── Draw (every second) ────────────────────────────────────────
             if full_clear:
@@ -118,7 +135,7 @@ def _interactive_loop(token: str, interval: int, title: bool, plan_override: str
             if last_error:
                 sys.stdout.write(f"  {_YEL}⚠  {last_error}{_RST}\n\n")
 
-            sys.stdout.write(status_line(countdown, interval) + "\n")
+            sys.stdout.write(status_line(countdown, interval, bell_on=bell_on) + "\n")
             sys.stdout.write("\033[J")   # erase from cursor to end of screen
             sys.stdout.flush()
 
@@ -140,8 +157,10 @@ def _interactive_loop(token: str, interval: int, title: bool, plan_override: str
                     elif ch in ("t", "T"):
                         title_on = not title_on
                         if not title_on:
-                            sys.stdout.write("\033]0;\007")  # clear title
+                            sys.stdout.write("\033]0;\007")
                             sys.stdout.flush()
+                    elif ch in ("b", "B"):
+                        bell_on = not bell_on
             else:
                 time.sleep(1)
 
@@ -204,6 +223,18 @@ keys (live mode):
         help="override plan for token insights: pro, max5, max20 (auto-detected by default)",
     )
     parser.add_argument(
+        "--bell", action="store_true",
+        help="ring terminal bell when usage crosses 80%% or 90%% (toggle with b key)",
+    )
+    parser.add_argument(
+        "--check", type=int, metavar="PCT",
+        help="exit with code 1 if 5-hour usage >= PCT%% (for scripts/CI)",
+    )
+    parser.add_argument(
+        "--stats", action="store_true",
+        help="show usage history stats and exit",
+    )
+    parser.add_argument(
         "--token", metavar="TOKEN",
         help="Claude Code OAuth access token (overrides auto-detection)",
     )
@@ -222,6 +253,21 @@ keys (live mode):
             "  Or pass it directly:   cwatch --token sk-ant-oat01-...\n"
             "  Or via env var:        CLAUDE_TOKEN=sk-ant-oat01-... cwatch"
         )
+
+    # ── Stats mode ────────────────────────────────────────────────────────
+    if args.stats:
+        print(stats_str())
+        return
+
+    # ── Check mode (for scripts / CI) ─────────────────────────────────────
+    if args.check is not None:
+        try:
+            data = fetch(token)
+            pct  = data.five_hour.pct if data.five_hour else 0
+            print(f"Usage: {pct}%  (threshold: {args.check}%)")
+            sys.exit(1 if pct >= args.check else 0)
+        except (AuthError, APIError) as e:
+            _die(str(e))
 
     # ── One-shot JSON dump ─────────────────────────────────────────────────
     if args.json:
@@ -245,7 +291,7 @@ keys (live mode):
         return
 
     # ── Interactive live dashboard ─────────────────────────────────────────
-    _interactive_loop(token, max(5, args.interval), title=args.title, plan_override=args.plan)
+    _interactive_loop(token, max(5, args.interval), title=args.title, bell=args.bell, plan_override=args.plan)
 
 
 if __name__ == "__main__":

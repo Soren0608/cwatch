@@ -20,12 +20,14 @@ from .api import FIVE_HOUR_SECS, PLAN_LIMITS, SEVEN_DAY_SECS, UsageData, Window,
 RESET  = "\033[0m"
 BOLD   = "\033[1m"
 DIM    = "\033[2m"
+BLINK  = "\033[5m"
 RED    = "\033[91m"
 YELLOW = "\033[93m"
 GREEN  = "\033[92m"
 CYAN   = "\033[96m"
 WHITE  = "\033[97m"
 BLUE   = "\033[94m"
+ORANGE = "\033[38;5;208m"
 
 
 def sys_supports_color() -> bool:
@@ -54,11 +56,22 @@ def _c(code: str, text: str) -> str:
 def _color_for(pct: int) -> str:
     if pct >= 90:
         return RED
-    if pct >= 75:
+    if pct >= 80:
+        return ORANGE
+    if pct >= 60:
         return YELLOW
-    if pct >= 50:
+    if pct >= 40:
         return CYAN
     return GREEN
+
+
+def _alert_suffix(pct: int) -> str:
+    """Return a visual alert indicator for high usage."""
+    if pct >= 90:
+        return f"  {_c(BOLD + RED, 'CRIT')}"
+    if pct >= 80:
+        return f"  {_c(BOLD + ORANGE, 'WARN')}"
+    return ""
 
 
 def bar(pct: int, width: int = 25, colored: bool = True, color: Optional[str] = None) -> str:
@@ -68,8 +81,9 @@ def bar(pct: int, width: int = 25, colored: bool = True, color: Optional[str] = 
     fill_char  = "█"
     empty_char = "░"
     if colored and not _NO_COLOR:
-        c = color or _color_for(pct)
-        return f"{c}{fill_char * filled}{RESET}{DIM}{empty_char * empty}{RESET}"
+        c     = color or _color_for(pct)
+        blink = BLINK if pct >= 90 else ""
+        return f"{blink}{c}{fill_char * filled}{RESET}{DIM}{empty_char * empty}{RESET}"
     return fill_char * filled + empty_char * empty
 
 
@@ -96,7 +110,7 @@ def _window_block(
 
     # ── usage line ────────────────────────────────────────────────────────────
     usage_line = (
-        f"  [{b_usage}]  {_c(c, f'{pct:3d}%')}  "
+        f"  [{b_usage}]  {_c(c, f'{pct:3d}%')}{_alert_suffix(pct)}  "
         f"{_c(DIM, reset_info)}"
     )
 
@@ -107,8 +121,11 @@ def _window_block(
         b_time = bar(elapsed, bar_width, colored=True, color=BLUE)
         eta_part = ""
         if show_eta:
-            eta = w.eta_str(total_seconds)
-            if eta:
+            end_clock = w.predicted_end_clock(total_seconds)
+            eta       = w.eta_str(total_seconds)
+            if end_clock:
+                eta_part = f"  {_c(YELLOW, f'limit ~{end_clock}  ({eta} from now)')}"
+            elif eta:
                 eta_part = f"  {_c(YELLOW, f'limit in {eta} at this rate')}"
         elapsed_str = _c(DIM, f"{elapsed:3d}%  time elapsed")
         time_line = f"  [{b_time}]  {elapsed_str}{eta_part}"
@@ -167,6 +184,9 @@ def _token_insights(data: UsageData, plan_key: str) -> list[str]:
     cost_str  = f"${cost_est:.2f}"
     lines_str = f"~{lines_est:,} lines of code"
 
+    end_clock = w.predicted_end_clock(FIVE_HOUR_SECS)
+    end_str   = f"   session ends ~{_c(YELLOW, end_clock)}" if end_clock else ""
+
     return [
         "",
         sep,
@@ -174,7 +194,7 @@ def _token_insights(data: UsageData, plan_key: str) -> list[str]:
         sep,
         "",
         f"  {_c(BOLD, 'Used:')}   {_c(GREEN, used_str)} / {limit_str} tokens"
-        f"   {_c(DIM, '≈ ' + lines_str + '   ≈ ' + cost_str)}",
+        f"   {_c(DIM, '≈ ' + lines_str + '   ≈ ' + cost_str)}{end_str}",
         "",
         f"  {_c(BOLD, 'Tip:')}    {_c(DIM, _TIPS[tip_index])}",
         "",
@@ -232,11 +252,47 @@ def dashboard(data: UsageData, updated_at: Optional[datetime] = None, plan_overr
     return "\n".join(lines)
 
 
-def status_line(countdown: int, interval: int) -> str:
+def status_line(countdown: int, interval: int, bell_on: bool = False) -> str:
     """Updatable one-line status bar shown below the dashboard."""
-    keys  = "[r]refresh  [+/-]interval  [t]title  [q]quit"
+    bell  = "[b]bell:ON " if bell_on else "[b]bell    "
+    keys  = f"[r]refresh  [+/-]interval  {bell}[t]title  [q]quit"
     timer = f"Next refresh in {countdown}s"
     return f"  {_c(DIM, timer + '   ·   ' + keys)}"
+
+
+def stats_str() -> str:
+    """Return a formatted stats block string."""
+    from .history import stats
+    s   = stats()
+    sep = _c(CYAN, "─" * 60)
+
+    if not s:
+        return (
+            f"\n  {sep}\n"
+            f"  {_c(BOLD + CYAN, 'USAGE STATS')}\n"
+            f"  {sep}\n\n"
+            f"  No history yet — run cwatch for a while to collect data.\n\n"
+        )
+
+    peak_hour_str = f"{s['peak_hour']:02d}:00" if s["peak_hour"] is not None else "unknown"
+    lines = [
+        "",
+        sep,
+        f"  {_c(BOLD + CYAN, 'USAGE STATS')}",
+        sep,
+        "",
+        f"  {_c(BOLD, 'Today:')}        avg {s['today_avg']:3d}%   peak {s['today_peak']:3d}%   ({s['today_count']} readings)",
+        f"  {_c(BOLD, 'Yesterday:')}    avg {s['yesterday_avg']:3d}%   peak {s['yesterday_peak']:3d}%",
+        "",
+        f"  {_c(BOLD, 'All time:')}     avg {s['avg_pct']:3d}%   peak {s['peak_pct']:3d}%   ({s['total']} readings)",
+        f"  {_c(BOLD, 'Over 80%:')}     {s['times_80']} times",
+        f"  {_c(BOLD, 'Over 90%:')}     {s['times_90']} times",
+        f"  {_c(BOLD, 'Peak hour:')}    {peak_hour_str}",
+        "",
+        sep,
+        "",
+    ]
+    return "\n".join(lines)
 
 
 def set_terminal_title(data: UsageData) -> None:
