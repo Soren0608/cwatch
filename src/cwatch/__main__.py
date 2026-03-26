@@ -118,25 +118,30 @@ def _interactive_loop(token: str, interval: int, title: bool, bell: bool, plan_o
                     countdown  = interval
                 full_clear = True
 
-            # ── Draw (every second) ────────────────────────────────────────
+            # ── Build frame ────────────────────────────────────────────────
+            if data:
+                frame = dashboard(data, datetime.now(), plan_override=plan_override)
+                if title_on:
+                    set_terminal_title(data)
+            else:
+                frame = f"\n  {_BOLD}CLAUDE CODE  ·  USAGE MONITOR{_RST}\n\n"
+
+            if last_error:
+                frame += f"  {_YEL}⚠  {last_error}{_RST}\n\n"
+
+            frame += status_line(countdown, interval, bell_on=bell_on) + "\n"
+
+            # ── Draw: erase each line before writing to prevent ghosting ───
             if full_clear:
                 clear_screen()
                 full_clear = False
             else:
                 cursor_home()
 
-            if data:
-                sys.stdout.write(dashboard(data, datetime.now(), plan_override=plan_override))
-                if title_on:
-                    set_terminal_title(data)
-            else:
-                sys.stdout.write(f"\n  {_BOLD}CLAUDE CODE  ·  USAGE MONITOR{_RST}\n\n")
-
-            if last_error:
-                sys.stdout.write(f"  {_YEL}⚠  {last_error}{_RST}\n\n")
-
-            sys.stdout.write(status_line(countdown, interval, bell_on=bell_on) + "\n")
-            sys.stdout.write("\033[J")   # erase from cursor to end of screen
+            # Append \033[K (erase to end of line) after every line
+            clean = "\n".join(line + "\033[K" for line in frame.split("\n"))
+            sys.stdout.write(clean)
+            sys.stdout.write("\033[J")   # erase any remaining lines below
             sys.stdout.flush()
 
             # ── Wait 1 s, watch for keypresses ─────────────────────────────
