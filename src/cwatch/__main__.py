@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import select
 import sys
 import time
@@ -45,6 +47,37 @@ from .render import (
     stats_str,
     status_line,
 )
+
+# ─── Terminal helpers ─────────────────────────────────────────────────────────
+
+_ANSI_ESC = re.compile(r"\033\[[0-9;]*[mKJHABCDsu]")
+
+
+def _visible_len(s: str) -> int:
+    return len(_ANSI_ESC.sub("", s))
+
+
+def _truncate(line: str, width: int) -> str:
+    """Trim a line to *width* visible characters, preserving ANSI codes."""
+    if _visible_len(line) <= width:
+        return line
+    result: list[str] = []
+    vis = 0
+    i = 0
+    while i < len(line):
+        m = _ANSI_ESC.match(line, i)
+        if m:
+            result.append(m.group())
+            i = m.end()
+        elif vis < width:
+            result.append(line[i])
+            vis += 1
+            i += 1
+        else:
+            break
+    result.append("\033[0m")
+    return "".join(result)
+
 
 # ─── ANSI for error messages ──────────────────────────────────────────────────
 _RED  = "\033[91m"
@@ -138,8 +171,19 @@ def _interactive_loop(token: str, interval: int, title: bool, bell: bool, plan_o
             else:
                 cursor_home()
 
-            # Append \033[K (erase to end of line) after every line
-            clean = "\n".join(line + "\033[K" for line in frame.split("\n"))
+            # Truncate every line to terminal width so nothing wraps.
+            # Wrapped lines from a previous (wider) render survive \033[K
+            # because they occupy a *different* terminal row — truncation
+            # prevents that situation entirely.
+            try:
+                cols = os.get_terminal_size().columns
+            except OSError:
+                cols = 220   # safe wide default if size is unavailable
+
+            clean = "\n".join(
+                _truncate(line, cols) + "\033[K"
+                for line in frame.split("\n")
+            )
             sys.stdout.write(clean)
             sys.stdout.write("\033[J")   # erase any remaining lines below
             sys.stdout.flush()
